@@ -1,0 +1,103 @@
+# k8s/deployment-demo.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dep-nginx
+spec:
+  selector:
+  template:
+    metadata:
+        labels:
+          app: nginx-server
+    spec:
+      containers:
+      - name: nginx-server
+        image: nginx:1.25.2
+      -  volumeMounts:
+          - name: ngnix-ConfigMap-vol
+            mountPath: /etc/nginx/conf.d/default.conf
+      volumes:
+        - name: nginx-ConfigMap-vol
+          configMap:
+            name: nginx-ConfigMap
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-ConfigMap
+data:
+  # this known as "file-like" keys. In YAML, the "|" coming after the key allows to have multi-line values
+  nginx.conf: |
+      server {
+        listen 80;
+        location / {
+          proxy_pass http://flask-app:9090;
+        }
+      }
+
+---
+# k8s/service-demo.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-nginx
+spec:
+  selector:
+    app: ngnix-server
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+# k8s/deployment-demo.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dep-flask
+spec:
+  selector:
+  template:
+    metadata:
+        labels:
+          app: flask-server
+    spec:
+      containers:
+      - name: flask-server
+        image: orrmb/flask_migrate_2k8s
+        ports:
+          containerPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dep-mongo
+spec:
+  selector:
+  template:
+    metadata:
+        labels:
+          app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:4.4
+        ports:
+          containerPort: 27017
+          volumeMounts:
+            - name: mongo-persistent-storage
+              mountPath: /data/db
+  volumeClaimTemplates:
+  - metadata:
+      name: mongo-persistent-storage
+    spec:
+      storageClassName: standard
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
