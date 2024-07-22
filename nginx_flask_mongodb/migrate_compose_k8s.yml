@@ -4,39 +4,40 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dep-nginx
+  labels:
+    app: nginx-server
 spec:
   selector:
+    matchLabels:
+      app: nginx-server
   template:
     metadata:
-        labels:
-          app: nginx-server
+      labels:
+        app: nginx-server
     spec:
       containers:
       - name: nginx-server
         image: nginx:1.25.2
-      -  volumeMounts:
-          - name: ngnix-ConfigMap-vol
+        volumeMounts:
+          - name: nginx-configmap-vol
             mountPath: /etc/nginx/conf.d/default.conf
       volumes:
-        - name: nginx-ConfigMap-vol
+        - name: nginx-configmap-vol
           configMap:
-            name: nginx-ConfigMap
-
+            name: nginx-configmap
 ---
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nginx-ConfigMap
+  name: nginx-configmap
 data:
-  # this known as "file-like" keys. In YAML, the "|" coming after the key allows to have multi-line values
   nginx.conf: |
-      server {
-        listen 80;
-        location / {
-          proxy_pass http://flask-app:9090;
-        }
+    server {
+      listen 80;
+      location / {
+        proxy_pass http://flask-app:9090;
       }
+    }
 
 ---
 # k8s/service-demo.yaml
@@ -47,7 +48,7 @@ metadata:
   name: svc-nginx
 spec:
   selector:
-    app: ngnix-server
+    app: nginx-server
   ports:
     - protocol: TCP
       port: 80
@@ -60,8 +61,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dep-flask
+  labels:
+    app: flask-server
 spec:
   selector:
+    matchLabels:
+      app: flask-server
   template:
     metadata:
         labels:
@@ -71,33 +76,44 @@ spec:
       - name: flask-server
         image: orrmb/flask_migrate_2k8s
         ports:
-          containerPort: 9090
+          - containerPort: 9090
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: dep-mongo
+  labels:
+    app: mongodb
 spec:
   selector:
+    matchLabels:
+      app: mongodb
   template:
     metadata:
-        labels:
-          app: mongodb
+      labels:
+        app: mongodb
     spec:
       containers:
       - name: mongodb
         image: mongo:4.4
         ports:
-          containerPort: 27017
-          volumeMounts:
-            - name: mongo-persistent-storage
-              mountPath: /data/db
-  volumeClaimTemplates:
-  - metadata:
-      name: mongo-persistent-storage
-    spec:
-      storageClassName: standard
-      accessModes: [ "ReadWriteOnce" ]
-      resources:
-        requests:
-          storage: 1Gi
+          - containerPort: 27017
+        volumeMounts:
+          - name: mongo-persistent-storage
+            mountPath: /data/db
+      volumes:
+        - name: mongo-persistent-storage
+          persistentVolumeClaim:
+            claimName: mongo-persistent-storage
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-persistent-storage
+spec:
+  storageClassName: standard
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
